@@ -6,6 +6,8 @@ from holoviews.operation.datashader import (
 
 import datashader as ds
 import holoviews as hv
+from holoviews import opts
+from holoviews.streams import Selection1D
 
 import astronomicAL.config as config
 import numpy as np
@@ -15,6 +17,7 @@ import glob
 import json
 import os
 import param
+hv.extension('bokeh')
 
 
 def get_plot_dict():
@@ -33,6 +36,19 @@ def get_plot_dict():
             ],
         ),
         "SED Plot": SEDPlot(sed_plot, []),
+        "SPS Interface": CustomPlot(
+            plot1,
+            ["Best_freq",
+             "Best_dm",
+             "Best_freq_arr",
+             "Best_dm_arr",
+             "RA",
+             "DEC",
+             "Best_sigma",
+             "Mean_dm",
+             "Mean_freq"
+             ],
+        ),
     }
 
     return plot_dict
@@ -648,3 +664,72 @@ def sed_plot(data, selected=None):
         )
 
     return plot
+
+def plot1(data,selected=None):
+    LX=pn.widgets.LiteralInput(name='Lower x',value=1.0, type=(float, int),max_height=80,max_width=80)
+    UX=pn.widgets.LiteralInput(name='Upper x',value=100.0, type=(float, int),max_height=80,max_width=80)
+    LY=pn.widgets.LiteralInput(name='Lower y',value=1.0, type=(float, int),max_height=80,max_width=80)
+    UY=pn.widgets.LiteralInput(name='Upper y',value=200.0, type=(float, int),max_height=80,max_width=80)
+    symbol=pn.widgets.Select(name='y-axis',options=['Best_dm','Best_sigma'],max_height=80,max_width=80)
+    Symbol=pn.widgets.Select(name='feature',options=['Mean_dm', 'Mean_freq'],max_height=80,max_width=80)
+    func= pn.widgets.Select(name='scale',options=['linear','log'],max_height=80,max_width=80)
+    def points(Symbols,funct,LX,UX,LY,UY):
+        if funct=='linear':
+            data1 =[(data[config.settings['Best_freq']][i],data[config.settings[Symbols]][i]) for i in range(len(data[config.settings['Best_freq']]))]
+            plot=hv.Scatter(data1, 'Best_freq', [Symbols]).opts(logx=False)
+            plot.opts(xlim=(LX,UX), ylim=(LY,UY))
+        else:
+            data1 = [(np.log10(data[config.settings['Best_freq']][i]),data[config.settings['Best_dm']][i]) for i in range(len(data[config.settings['Best_freq']]))]
+            plot=hv.Scatter(data1, 'Best_freq', [Symbols])
+            plot.opts(logx=True,xlim=(np.log10(LX),np.log10(UX)), ylim=(LY,UY))
+        return plot
+    points = hv.DynamicMap(pn.bind(points, Symbols=symbol,funct=func,LX=LX,UX=UX,LY=LY,UY=UY))
+    stream = Selection1D(source=points)
+    
+    def regression(index):
+        if not index:
+            return hv.Points(np.random.rand(0, 2),['Freq(1/s)','Sigma'])
+        A=eval(data[config.settings['Best_freq_arr']][index[0]])
+        B = np.reshape(A, (-1, 2))
+        return hv.Points(B,['Freq(1/s)','Sigma'])
+
+    def regression1(index):
+        if not index:
+            return hv.Points(np.random.rand(0, 2),['DM(pc/cc)','Sigma'])
+        A=eval(data[config.settings['Best_dm_arr']][index[0]])
+        B = np.reshape(A, (-1, 2))
+        return hv.Points(B,['DM(pc/cc)','Sigma'])
+    
+    def regression2(index):
+        if not index:
+            return hv.Table(([], []), 'Parameter', 'Value')
+        xs = ['RA','DEC','Spin Frequency','DM','Sigma']
+        t=index[0]
+        ys = [data[config.settings['RA']][t],data[config.settings['DEC']][t],data[config.settings['Best_freq']][t],
+        data[config.settings['Best_dm']][t],data[config.settings['Best_sigma']][t]]
+        return hv.Table((xs, ys), 'Parameter', 'Value')
+    
+    def regression3(symbol,index):
+        if not index:
+            return (hv.Histogram(([], []))*hv.Points(([],[]))).opts(ylabel='Number of candidates',xlabel=f'{symbol}')
+        t=data[config.settings[symbol]]
+        frequencies, edges = np.histogram(t, 30)
+        plot=hv.Histogram((edges, frequencies))*hv.Points((t[index[0]],max(frequencies))).opts(color='k', size=8)
+        return plot.opts(ylabel='Number of candidates',xlabel=f'{symbol}').relabel(f'Value={t[index[0]]}')
+    
+    reg = hv.DynamicMap(regression, kdims=[], streams=[stream])
+    reg1 = hv.DynamicMap(regression1, kdims=[], streams=[stream])
+    reg2 = hv.DynamicMap(regression2, kdims=[], streams=[stream])
+    reg3= hv.DynamicMap(pn.bind(regression3, symbol=Symbol),streams=[stream])
+
+    layout = (points + reg + reg1 + reg2 + reg3).cols(3)
+    layout.opts(
+        opts.Scatter(color='black', tools=['tap', 'hover'], width=600, 
+                     marker='triangle', cmap='Set1', size=10, framewise=True),
+        opts.Overlay(toolbar='above', legend_position='right'),
+        opts.Points(framewise=True,axiswise=True),
+        opts.Histogram(framewise=True)
+    )
+    hv_pan=pn.GridBox(symbol,func,Symbol,LX,UX,LY,UY,ncols=3,width=20)
+    hv_p=pn.Column(hv_pan,layout)
+    return hv_p
