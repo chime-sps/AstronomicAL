@@ -685,21 +685,40 @@ def plot1(data,selected=None):
         return plot
     points = hv.DynamicMap(pn.bind(points, Symbols=symbol,funct=func,LX=LX,UX=UX,LY=LY,UY=UY))
     stream = Selection1D(source=points)
-    
+
     def regression(index):
         if not index:
             return hv.Points(np.random.rand(0, 2),['Freq(1/s)','Sigma'])
         A=eval(data[config.settings['Best_freq_arr']][index[0]])
         B = np.reshape(A, (-1, 2))
-        return hv.Points(B,['Freq(1/s)','Sigma'])
+        pts = hv.Points(B,['Freq(1/s)','Sigma'])
+        if 'DM-Sigma_FitGauss_amplitude' in config.settings.keys():
+            if data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]] is not None:
+                # get fitted parameters for gaussian
+                amp = data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]]
+                mu = data[config.settings['DM-Sigma_FitGauss_mu']][index[0]]
+                sig = data[config.settings['DM-Sigma_FitGauss_gauss_sigma']][index[0]]
+                # get x range to plot (would rather get the xrange of the axis but don't know how)
+                x_crv = np.linspace(B[:,0].min(), B[:,0].max(),50)
+                # make list of (x, gauss(x,amp,mu,sig)) coordinates
+                crv_pts = [(val, amp * np.exp(-((val - mu) ** 2) / (2 * sig**2))) for i,val in enumerate(x_crv)]
+                crv = hv.Curve(crv_pts)
+                return pts * crv
+            else:
+                return pts
+        else:
+            return pts
+
 
     def regression1(index):
         if not index:
             return hv.Points(np.random.rand(0, 2),['DM(pc/cc)','Sigma'])
         A=eval(data[config.settings['Best_dm_arr']][index[0]])
         B = np.reshape(A, (-1, 2))
+        #
+
         return hv.Points(B,['DM(pc/cc)','Sigma'])
-    
+
     def regression2(index):
         if not index:
             return hv.Table(([], []), 'Parameter', 'Value')
@@ -708,7 +727,7 @@ def plot1(data,selected=None):
         ys = [data[config.settings['RA']][t],data[config.settings['DEC']][t],data[config.settings['Best_freq']][t],
         data[config.settings['Best_dm']][t],data[config.settings['Best_sigma']][t]]
         return hv.Table((xs, ys), 'Parameter', 'Value')
-    
+
     def regression3(symbol,index):
         if not index:
             return (hv.Histogram(([], []))*hv.Points(([],[]))).opts(ylabel='Number of candidates',xlabel=f'{symbol}')
@@ -716,7 +735,7 @@ def plot1(data,selected=None):
         frequencies, edges = np.histogram(t, 30)
         plot=hv.Histogram((edges, frequencies))*hv.Points((t[index[0]],max(frequencies))).opts(color='k', size=8)
         return plot.opts(ylabel='Number of candidates',xlabel=f'{symbol}').relabel(f'Value={t[index[0]]}')
-    
+
     reg = hv.DynamicMap(regression, kdims=[], streams=[stream])
     reg1 = hv.DynamicMap(regression1, kdims=[], streams=[stream])
     reg2 = hv.DynamicMap(regression2, kdims=[], streams=[stream])
@@ -724,7 +743,7 @@ def plot1(data,selected=None):
 
     layout = (points + reg + reg1 + reg2 + reg3).cols(3)
     layout.opts(
-        opts.Scatter(color='black', tools=['tap', 'hover'], width=600, 
+        opts.Scatter(color='black', tools=['tap', 'hover'], width=600,
                      marker='triangle', cmap='Set1', size=10, framewise=True),
         opts.Overlay(toolbar='above', legend_position='right'),
         opts.Points(framewise=True,axiswise=True),
