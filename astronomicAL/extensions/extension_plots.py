@@ -691,14 +691,21 @@ def plot1(data,selected=None):
 
     def regression(index):
         if not index:
-            print("No point selected yet")
-            return hv.Points(np.random.rand(0, 2),['Freq(1/s)','Sigma']) * hv.Curve([(0,0)])
+            return hv.Points(np.random.rand(0, 2),['Freq(1/s)','Sigma'])
         A=eval(data[config.settings['Best_freq_arr']][index[0]])
         B = np.reshape(A, (-1, 2))
-        pts = hv.Points(B,['Freq(1/s)','Sigma'])
-        print(data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]])
+        return hv.Points(B,['Freq(1/s)','Sigma'])
+
+
+    def regression1(index):
+        if not index:
+            return hv.Points(np.random.rand(0, 2),['DM(pc/cc)','Sigma']) * hv.Curve([(0,0)])
+        A=eval(data[config.settings['Best_dm_arr']][index[0]])
+        B = np.reshape(A, (-1, 2))
+        pts = hv.Points(B,['DM(pc/cc)','Sigma'])
+
+        # plot FitGauss curve if needed
         if not np.isnan(data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]]):
-            print("in non-nan loop")
             # get fitted parameters for gaussian
             amp = data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]]
             mu = data[config.settings['DM-Sigma_FitGauss_mu']][index[0]]
@@ -709,19 +716,8 @@ def plot1(data,selected=None):
             crv_pts = [(val, amp * np.exp(-((val - mu) ** 2) / (2 * sig**2))) for i,val in enumerate(x_crv)]
             crv = hv.Curve(crv_pts)
         else:
-            print("in nan loop")
             crv=hv.Curve([(B[0,0], B[0,1])])
-        return pts*crv
-
-
-    def regression1(index):
-        if not index:
-            return hv.Points(np.random.rand(0, 2),['DM(pc/cc)','Sigma'])
-        A=eval(data[config.settings['Best_dm_arr']][index[0]])
-        B = np.reshape(A, (-1, 2))
-        #
-
-        return hv.Points(B,['DM(pc/cc)','Sigma'])
+        return pts * crv
 
     def regression2(index):
         if not index:
