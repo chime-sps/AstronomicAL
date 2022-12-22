@@ -46,7 +46,10 @@ def get_plot_dict():
              "DEC",
              "Best_sigma",
              "Mean_dm",
-             "Mean_freq"
+             "Mean_freq",
+             "DM-Sigma_FitGauss_amplitude",
+             "DM-Sigma_FitGauss_mu",
+             "DM-Sigma_FitGauss_gauss_sigma"
              ],
         ),
     }
@@ -692,18 +695,17 @@ def plot1(data,selected=None):
         A=eval(data[config.settings['Best_freq_arr']][index[0]])
         B = np.reshape(A, (-1, 2))
         pts = hv.Points(B,['Freq(1/s)','Sigma'])
-        if 'DM-Sigma_FitGauss_amplitude' in config.settings.keys():
-            if data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]] is not None:
-                # get fitted parameters for gaussian
-                amp = data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]]
-                mu = data[config.settings['DM-Sigma_FitGauss_mu']][index[0]]
-                sig = data[config.settings['DM-Sigma_FitGauss_gauss_sigma']][index[0]]
-                # get x range to plot (would rather get the xrange of the axis but don't know how)
-                x_crv = np.linspace(B[:,0].min(), B[:,0].max(),50)
-                # make list of (x, gauss(x,amp,mu,sig)) coordinates
-                crv_pts = [(val, amp * np.exp(-((val - mu) ** 2) / (2 * sig**2))) for i,val in enumerate(x_crv)]
-                crv = hv.Curve(crv_pts)
-                return pts * crv
+        if data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]] is not None:
+            # get fitted parameters for gaussian
+            amp = data[config.settings['DM-Sigma_FitGauss_amplitude']][index[0]]
+            mu = data[config.settings['DM-Sigma_FitGauss_mu']][index[0]]
+            sig = data[config.settings['DM-Sigma_FitGauss_gauss_sigma']][index[0]]
+            # get x range to plot (would rather get the xrange of the axis but don't know how)
+            x_crv = np.linspace(B[:,0].min(), B[:,0].max(),50)
+            # make list of (x, gauss(x,amp,mu,sig)) coordinates
+            crv_pts = [(val, amp * np.exp(-((val - mu) ** 2) / (2 * sig**2))) for i,val in enumerate(x_crv)]
+            crv = hv.Curve(crv_pts)
+            return pts * crv
             else:
                 return pts
         else:
